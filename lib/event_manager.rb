@@ -1,6 +1,7 @@
 require 'csv'
 require 'google/apis/civicinfo_v2'
 require 'erb'
+require 'date'
 
 puts 'Event Manager Initialized!'
 small_file_name = 'event_attendees.csv'
@@ -52,6 +53,12 @@ def save_thank_you_letter(id, form_letter)
   puts "Created #{filename}"
 end
 
+def highest_frequency_target(frequency_hash)
+  max = frequency_hash.values.max
+  highest_target = frequency_hash.select { |_k, freq| freq == max }
+  highest_target.keys.join(' and ')
+end
+
 contents = CSV.open(
   small_file_name,
   headers: true,
@@ -61,15 +68,29 @@ contents = CSV.open(
 template_letter = File.read('form_letter.erb')
 erb_template = ERB.new(template_letter)
 
+form_submision_hour_distribution = Hash.new(0)
+form_submision_wday_distribution = Hash.new(0)
+
 contents.each do |row|
   id = row[0]
   name = row[:first_name]
   zipcode = clean_zipcode(row[:zipcode])
   phone_number = clean_phone_number(row[:homephone])
+  registration_time = Time.strptime(row[:regdate], '%m/%d/%y %H:%M')
+
+  registration_hour = registration_time.hour
+  registration_wday = registration_time.wday
+
+  form_submision_hour_distribution["#{registration_hour}h"] += 1
+  form_submision_wday_distribution[Date::DAYNAMES[registration_wday]] += 1
+
   legislators = legislators_by_zipcode(zipcode)
 
   form_letter = erb_template.result(binding)
 
   save_thank_you_letter(id, form_letter)
-  puts phone_number
+  puts "The Phone number is #{phone_number}"
 end
+
+puts "The most eficient hours is:#{highest_frequency_target(form_submision_hour_distribution)}"
+puts "And the week day is:#{highest_frequency_target(form_submision_wday_distribution)}"
